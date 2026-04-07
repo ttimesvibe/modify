@@ -37,11 +37,14 @@ const CATEGORIES = [
   { value: 'etc', label: '기타', icon: '📌' },
 ];
 
-const PRIORITIES = [
-  { value: 'high', label: '필수', color: T.red, bg: T.redBg, icon: '🔴' },
-  { value: 'medium', label: '권장', color: T.yellow, bg: T.yellowBg, icon: '🟡' },
-  { value: 'low', label: '참고', color: T.green, bg: T.greenBg, icon: '🟢' },
-];
+// 카테고리별 색상 (우선순위 제거 — 카테고리로 좌측 보더 색상 결정)
+const CAT_COLORS = {
+  subtitle: { color: '#F87171', bg: 'rgba(248,113,113,0.1)' },
+  cut: { color: '#FBBF24', bg: 'rgba(251,191,36,0.1)' },
+  graphic: { color: '#A78BFA', bg: 'rgba(167,139,250,0.1)' },
+  audio: { color: '#34D399', bg: 'rgba(52,211,153,0.1)' },
+  etc: { color: '#6C9CFC', bg: 'rgba(108,156,252,0.1)' },
+};
 
 // ─── Helpers ───
 function genId() { return Math.random().toString(36).slice(2, 10); }
@@ -132,7 +135,6 @@ function YouTubePlayer({ videoId, onPlayerReady }) {
 function CardForm({ onSubmit, currentTime, onCancel }) {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('subtitle');
-  const [priority, setPriority] = useState('high');
   const [imageData, setImageData] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [tsStart, setTsStart] = useState(currentTime ?? 0);
@@ -169,7 +171,6 @@ function CardForm({ onSubmit, currentTime, onCancel }) {
       timestampEnd: tsEnd !== '' ? parseFloat(tsEnd) : null,
       content: content.trim(),
       category,
-      priority,
       hasImage: !!imageData,
       imageData: imageData || null,
       checked: false,
@@ -224,7 +225,7 @@ function CardForm({ onSubmit, currentTime, onCancel }) {
         </div>
       </div>
 
-      {/* 카테고리 + 우선순위 */}
+      {/* 카테고리 */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         {CATEGORIES.map(c => (
           <button key={c.value} onClick={() => setCategory(c.value)}
@@ -236,18 +237,6 @@ function CardForm({ onSubmit, currentTime, onCancel }) {
               fontFamily: T.fontBody, transition: 'all 0.15s',
             }}
           >{c.icon} {c.label}</button>
-        ))}
-        <div style={{ width: 1, background: T.border, margin: '0 4px' }} />
-        {PRIORITIES.map(p => (
-          <button key={p.value} onClick={() => setPriority(p.value)}
-            style={{
-              background: priority === p.value ? p.bg : T.surfaceAlt,
-              border: `1px solid ${priority === p.value ? p.color : T.border}`,
-              borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
-              color: priority === p.value ? p.color : T.textDim, fontSize: 13,
-              fontFamily: T.fontBody, transition: 'all 0.15s',
-            }}
-          >{p.icon} {p.label}</button>
         ))}
       </div>
 
@@ -311,7 +300,7 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState(card.reply || '');
   const cat = CATEGORIES.find(c => c.value === card.category) || CATEGORIES[4];
-  const pri = PRIORITIES.find(p => p.value === card.priority) || PRIORITIES[0];
+  const catColor = CAT_COLORS[card.category] || CAT_COLORS.etc;
   const imgSrc = images[card.id];
 
   return (
@@ -321,7 +310,7 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
       borderRadius: 12, padding: 16, marginBottom: 10,
       opacity: card.checked ? 0.65 : 1,
       transition: 'all 0.2s',
-      borderLeft: `3px solid ${pri.color}`,
+      borderLeft: `3px solid ${catColor.color}`,
     }}>
       {/* 헤더: 타임스탬프 + 카테고리 + 우선순위 + 체크 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -339,7 +328,7 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
             {card.timestampEnd != null && `~${fmtTime(card.timestampEnd)}`}
           </button>
           <span style={{
-            fontSize: 12, color: pri.color, background: pri.bg,
+            fontSize: 12, color: catColor.color, background: catColor.bg,
             padding: '2px 8px', borderRadius: 4, fontFamily: T.fontBody,
           }}>{cat.icon} {cat.label}</span>
         </div>
@@ -560,6 +549,23 @@ export default function App() {
     }, 500);
   }
 
+  // 즉시 저장 (카드 추가/삭제/체크 시)
+  async function saveNow(cardsToSave) {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    try {
+      setAutoSaveStatus('💾 저장 중...');
+      await api('/save', {
+        method: 'POST',
+        body: { id: sid, videoUrl, videoId, title, cards: cardsToSave },
+      });
+      lastSnapshot.current = JSON.stringify(cardsToSave);
+      if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
+      setAutoSaveStatus('✓ 저장됨');
+      setTimeout(() => setAutoSaveStatus(''), 3000);
+    } catch { setAutoSaveStatus('❌ 저장 실패'); }
+  }
+
   async function handleAddCard(card) {
     const newCards = [...cards, card].sort((a, b) => a.timestamp - b.timestamp);
     setCards(newCards);
@@ -575,10 +581,15 @@ export default function App() {
         setImages(prev => ({ ...prev, [card.id]: card.imageData }));
       } catch { console.error('image save failed'); }
     }
+
+    // 즉시 저장
+    await saveNow(newCards);
   }
 
   function handleCheck(cardId) {
-    setCards(prev => prev.map(c => c.id === cardId ? { ...c, checked: !c.checked } : c));
+    const newCards = cards.map(c => c.id === cardId ? { ...c, checked: !c.checked } : c);
+    setCards(newCards);
+    saveNow(newCards);
   }
 
   function handleReply(cardId, reply) {
@@ -591,11 +602,14 @@ export default function App() {
 
   async function handleDelete(cardId) {
     const card = cards.find(c => c.id === cardId);
-    setCards(prev => prev.filter(c => c.id !== cardId));
+    const newCards = cards.filter(c => c.id !== cardId);
+    setCards(newCards);
     if (card?.hasImage) {
       try { await api(`/image/${sessionId}/${cardId}`, { method: 'DELETE' }); } catch {}
       setImages(prev => { const n = { ...prev }; delete n[cardId]; return n; });
     }
+    // 즉시 저장
+    await saveNow(newCards);
   }
 
   function handleSeek(sec) {
