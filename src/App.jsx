@@ -663,6 +663,10 @@ export default function App() {
     if (filter === 'unchecked') return !c.checked;
     if (filter === 'checked') return c.checked;
     return true;
+  }).sort((a, b) => {
+    // 편집 완료 체크된 카드는 맨 아래로, 각 그룹 내에서는 시간순
+    if (a.checked !== b.checked) return a.checked ? 1 : -1;
+    return a.timestamp - b.timestamp;
   });
 
   const stats = { total: cards.length, checked: cards.filter(c => c.checked).length };
