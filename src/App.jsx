@@ -616,7 +616,11 @@ export default function App() {
   function handleSeek(sec) {
     if (playerRef.current?.seekTo) {
       playerRef.current.seekTo(sec, true);
-      playerRef.current.pauseVideo();
+      // 프레임이 로드될 때까지 잠깐 재생 후 정지
+      playerRef.current.playVideo();
+      setTimeout(() => {
+        playerRef.current.pauseVideo();
+      }, 300);
     }
   }
 
