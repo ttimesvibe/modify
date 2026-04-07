@@ -1,7 +1,0 @@
-name = "video-review"
-main = "index.js"
-compatibility_date = "2024-12-01"
-
-[[kv_namespaces]]
-binding = "SESSIONS"
-id = "30e3cbcd39d14b8fade9c8c447a84fbf"

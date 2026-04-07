@@ -343,13 +343,14 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
           >🗑</button>
           <button onClick={() => onCheck(card.id)}
             style={{
-              width: 28, height: 28, borderRadius: 6,
+              borderRadius: 6, padding: '4px 10px',
               background: card.checked ? T.green : 'transparent',
               border: `2px solid ${card.checked ? T.green : T.border}`,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontSize: 14, transition: 'all 0.15s',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              color: card.checked ? '#fff' : T.textMuted, fontSize: 12, transition: 'all 0.15s',
+              fontFamily: T.fontBody,
             }}
-          >{card.checked ? '✓' : ''}</button>
+          >{card.checked ? '✓' : '☐'} 편집 완료 체크</button>
         </div>
       </div>
 
@@ -615,6 +616,7 @@ export default function App() {
   function handleSeek(sec) {
     if (playerRef.current?.seekTo) {
       playerRef.current.seekTo(sec, true);
+      playerRef.current.pauseVideo();
     }
   }
 
