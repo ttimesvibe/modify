@@ -31,7 +31,7 @@ const T = {
 
 const CATEGORIES = [
   { value: 'subtitle', label: '자막', icon: '💬' },
-  { value: 'cut', label: '컷편집', icon: '✂️' },
+  { value: 'cut', label: '구간 삭제', icon: '✂️' },
   { value: 'graphic', label: '그래픽', icon: '🎨' },
   { value: 'audio', label: '오디오', icon: '🔊' },
   { value: 'etc', label: '기타', icon: '📌' },
@@ -297,10 +297,11 @@ function CardForm({ onSubmit, currentTime, onCancel }) {
 function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(card.content);
+  const [editCategory, setEditCategory] = useState(card.category);
   const [showReply, setShowReply] = useState(false);
   const [replyText, setReplyText] = useState(card.reply || '');
-  const cat = CATEGORIES.find(c => c.value === card.category) || CATEGORIES[4];
-  const catColor = CAT_COLORS[card.category] || CAT_COLORS.etc;
+  const cat = CATEGORIES.find(c => c.value === (editing ? editCategory : card.category)) || CATEGORIES[4];
+  const catColor = CAT_COLORS[editing ? editCategory : card.category] || CAT_COLORS.etc;
   const imgSrc = images[card.id];
 
   return (
@@ -369,6 +370,23 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
       {/* 수정 내용 */}
       {editing ? (
         <div style={{ marginBottom: 8 }}>
+          {/* 카테고리 선택 */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {CATEGORIES.map(c => {
+              const cc = CAT_COLORS[c.value] || CAT_COLORS.etc;
+              return (
+                <button key={c.value} onClick={() => setEditCategory(c.value)}
+                  style={{
+                    background: editCategory === c.value ? cc.bg : T.surfaceAlt,
+                    border: `1px solid ${editCategory === c.value ? cc.color : T.border}`,
+                    borderRadius: 5, padding: '2px 8px', cursor: 'pointer',
+                    color: editCategory === c.value ? cc.color : T.textMuted, fontSize: 12,
+                    fontFamily: T.fontBody, transition: 'all 0.15s',
+                  }}
+                >{c.icon} {c.label}</button>
+              );
+            })}
+          </div>
           <textarea value={editText} onChange={e => setEditText(e.target.value)}
             style={{
               width: '100%', minHeight: 60, background: T.surfaceAlt, border: `1px solid ${T.accent}`,
@@ -376,9 +394,9 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
               padding: 10, resize: 'vertical', outline: 'none', boxSizing: 'border-box',
             }} />
           <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-            <button onClick={() => { onEdit(card.id, editText); setEditing(false); }}
+            <button onClick={() => { onEdit(card.id, { content: editText, category: editCategory }); setEditing(false); }}
               style={{ background: T.accent, border: 'none', borderRadius: 6, color: '#fff', padding: '4px 12px', cursor: 'pointer', fontSize: 12 }}>저장</button>
-            <button onClick={() => { setEditText(card.content); setEditing(false); }}
+            <button onClick={() => { setEditText(card.content); setEditCategory(card.category); setEditing(false); }}
               style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, color: T.textDim, padding: '4px 12px', cursor: 'pointer', fontSize: 12 }}>취소</button>
           </div>
         </div>
@@ -597,8 +615,8 @@ export default function App() {
     setCards(prev => prev.map(c => c.id === cardId ? { ...c, reply } : c));
   }
 
-  function handleEdit(cardId, content) {
-    setCards(prev => prev.map(c => c.id === cardId ? { ...c, content } : c));
+  function handleEdit(cardId, updates) {
+    setCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updates } : c));
   }
 
   async function handleDelete(cardId) {
