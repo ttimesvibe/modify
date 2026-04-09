@@ -293,15 +293,41 @@ function CardForm({ onSubmit, currentTime, onCancel }) {
   );
 }
 
-function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }) {
+function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images, currentTime }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(card.content);
   const [editCategory, setEditCategory] = useState(card.category);
-  const [showReply, setShowReply] = useState(false);
-  const [replyText, setReplyText] = useState(card.reply || '');
+  const [editTsStart, setEditTsStart] = useState(card.timestamp);
+  const [editTsEnd, setEditTsEnd] = useState(card.timestampEnd);
   const cat = CATEGORIES.find(c => c.value === (editing ? editCategory : card.category)) || CATEGORIES[4];
   const catColor = CAT_COLORS[editing ? editCategory : card.category] || CAT_COLORS.etc;
   const imgSrc = images[card.id];
+
+  const startEdit = () => {
+    setEditText(card.content);
+    setEditCategory(card.category);
+    setEditTsStart(card.timestamp);
+    setEditTsEnd(card.timestampEnd);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditText(card.content);
+    setEditCategory(card.category);
+    setEditTsStart(card.timestamp);
+    setEditTsEnd(card.timestampEnd);
+    setEditing(false);
+  };
+
+  const saveEdit = () => {
+    onEdit(card.id, {
+      content: editText,
+      category: editCategory,
+      timestamp: editTsStart,
+      timestampEnd: editTsEnd,
+    });
+    setEditing(false);
+  };
 
   return (
     <div style={{
@@ -312,25 +338,55 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
       transition: 'all 0.2s',
       borderLeft: `3px solid ${catColor.color}`,
     }}>
-      {/* 헤더: 타임스탬프 + 카테고리 + 우선순위 + 체크 */}
+      {/* 헤더: 타임스탬프 + 카테고리 + 체크 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => onSeek(card.timestamp)}
-            style={{
-              background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 6,
-              color: T.accent, fontFamily: T.fontMono, fontSize: 13, padding: '3px 8px',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => e.target.style.borderColor = T.accent}
-            onMouseLeave={e => e.target.style.borderColor = T.border}
-          >
-            ▶ {fmtTime(card.timestamp)}
-            {card.timestampEnd != null && `~${fmtTime(card.timestampEnd)}`}
-          </button>
-          <span style={{
-            fontSize: 12, color: catColor.color, background: catColor.bg,
-            padding: '2px 8px', borderRadius: 4, fontFamily: T.fontBody,
-          }}>{cat.icon} {cat.label}</span>
+          {editing ? (
+            /* 편집 모드: 타임스탬프 버튼으로 변경 가능 */
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button onClick={() => setEditTsStart(currentTime)}
+                title="현재 재생 시점으로 설정"
+                style={{
+                  background: T.surfaceAlt, border: `1px solid ${T.accent}`, borderRadius: 6,
+                  color: T.accent, fontFamily: T.fontMono, fontSize: 13, padding: '3px 8px',
+                  cursor: 'pointer',
+                }}
+              >▶ {fmtTime(editTsStart)}</button>
+              <span style={{ color: T.textMuted, fontSize: 12 }}>~</span>
+              <button onClick={() => setEditTsEnd(currentTime)}
+                title="현재 재생 시점으로 설정"
+                style={{
+                  background: T.surfaceAlt, border: `1px solid ${editTsEnd != null ? T.accent : T.border}`, borderRadius: 6,
+                  color: editTsEnd != null ? T.accent : T.textMuted, fontFamily: T.fontMono, fontSize: 13, padding: '3px 8px',
+                  cursor: 'pointer',
+                }}
+              >{editTsEnd != null ? fmtTime(editTsEnd) : '끝'}</button>
+              {editTsEnd != null && (
+                <button onClick={() => setEditTsEnd(null)}
+                  style={{ background: 'transparent', border: 'none', color: T.textMuted, cursor: 'pointer', fontSize: 11, padding: '2px 4px' }}>✕</button>
+              )}
+            </div>
+          ) : (
+            /* 보기 모드: 기존 타임스탬프 표시 */
+            <button onClick={() => onSeek(card.timestamp)}
+              style={{
+                background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 6,
+                color: T.accent, fontFamily: T.fontMono, fontSize: 13, padding: '3px 8px',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => e.target.style.borderColor = T.accent}
+              onMouseLeave={e => e.target.style.borderColor = T.border}
+            >
+              ▶ {fmtTime(card.timestamp)}
+              {card.timestampEnd != null && `~${fmtTime(card.timestampEnd)}`}
+            </button>
+          )}
+          {!editing && (
+            <span style={{
+              fontSize: 12, color: catColor.color, background: catColor.bg,
+              padding: '2px 8px', borderRadius: 4, fontFamily: T.fontBody,
+            }}>{cat.icon} {cat.label}</span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => onDelete(card.id)} title="삭제"
@@ -393,53 +449,26 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images }
               padding: 10, resize: 'vertical', outline: 'none', boxSizing: 'border-box',
             }} />
           <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-            <button onClick={() => { onEdit(card.id, { content: editText, category: editCategory }); setEditing(false); }}
+            <button onClick={saveEdit}
               style={{ background: T.accent, border: 'none', borderRadius: 6, color: '#fff', padding: '4px 12px', cursor: 'pointer', fontSize: 12 }}>저장</button>
-            <button onClick={() => { setEditText(card.content); setEditCategory(card.category); setEditing(false); }}
+            <button onClick={cancelEdit}
               style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, color: T.textDim, padding: '4px 12px', cursor: 'pointer', fontSize: 12 }}>취소</button>
           </div>
         </div>
       ) : (
-        <p onClick={() => setEditing(true)}
-          style={{
+        <>
+          <p style={{
             color: card.checked ? T.textMuted : T.text, fontSize: 14, lineHeight: 1.6,
-            margin: '0 0 8px 0', cursor: 'pointer', fontFamily: T.fontBody,
+            margin: '0 0 8px 0', fontFamily: T.fontBody,
             textDecoration: card.checked ? 'line-through' : 'none',
             whiteSpace: 'pre-wrap',
-          }}
-          title="클릭하여 수정"
-        >{card.content}</p>
-      )}
-
-      {/* 답변 */}
-      {card.reply && !showReply && (
-        <div onClick={() => setShowReply(true)}
-          style={{
-            background: T.accentBg, border: `1px solid ${T.border}`, borderRadius: 8,
-            padding: '8px 12px', fontSize: 13, color: T.accent, cursor: 'pointer',
-            fontFamily: T.fontBody,
-          }}>
-          💬 {card.reply}
-        </div>
-      )}
-      {showReply && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-          <input value={replyText} onChange={e => setReplyText(e.target.value)}
-            placeholder="답변 입력..."
+          }}>{card.content}</p>
+          <button onClick={startEdit}
             style={{
-              flex: 1, background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 6,
-              color: T.text, fontFamily: T.fontBody, fontSize: 13, padding: '6px 10px', outline: 'none',
-            }} />
-          <button onClick={() => { onReply(card.id, replyText); setShowReply(false); }}
-            style={{ background: T.accent, border: 'none', borderRadius: 6, color: '#fff', padding: '4px 12px', cursor: 'pointer', fontSize: 12 }}>저장</button>
-        </div>
-      )}
-      {!card.reply && !showReply && (
-        <button onClick={() => setShowReply(true)}
-          style={{
-            background: 'transparent', border: 'none', color: T.textMuted,
-            fontSize: 12, cursor: 'pointer', padding: 0, fontFamily: T.fontBody,
-          }}>💬 답변 달기</button>
+              background: 'transparent', border: 'none', color: T.textMuted,
+              fontSize: 12, cursor: 'pointer', padding: 0, fontFamily: T.fontBody,
+            }}>✏️ 수정하기</button>
+        </>
       )}
     </div>
   );
@@ -868,8 +897,8 @@ export default function App() {
             key={card.id}
             card={card}
             images={images}
+            currentTime={currentTime}
             onCheck={handleCheck}
-            onReply={handleReply}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onSeek={handleSeek}
