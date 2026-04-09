@@ -187,41 +187,40 @@ function CardForm({ onSubmit, currentTime, onCancel }) {
       boxShadow: `0 0 20px rgba(108,156,252,0.06)`,
     }}>
       {/* 타임스탬프 */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ color: T.textMuted, fontSize: 12, fontFamily: T.fontBody }}>시작</span>
-          <input
-            type="text" value={fmtTime(tsStart)}
-            onChange={e => {
-              const p = e.target.value.split(':').map(Number);
-              if (p.length === 2) setTsStart(p[0] * 60 + p[1]);
-              else if (p.length === 3) setTsStart(p[0] * 3600 + p[1] * 60 + p[2]);
-            }}
+          <button onClick={() => setTsStart(currentTime)}
+            title="현재 재생 시점으로 설정"
             style={{
               background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 6,
-              color: T.accent, fontFamily: T.fontMono, fontSize: 14, padding: '4px 8px',
-              width: 72, textAlign: 'center',
+              color: T.accent, fontFamily: T.fontMono, fontSize: 14, padding: '4px 10px',
+              cursor: 'pointer', minWidth: 72, textAlign: 'center', transition: 'border-color 0.15s',
             }}
-          />
+            onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
+            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
+          >{fmtTime(tsStart)}</button>
         </div>
         <span style={{ color: T.textMuted }}>~</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ color: T.textMuted, fontSize: 12, fontFamily: T.fontBody }}>끝</span>
-          <input
-            type="text" placeholder="선택"
-            value={tsEnd !== '' ? fmtTime(tsEnd) : ''}
-            onChange={e => {
-              if (!e.target.value) { setTsEnd(''); return; }
-              const p = e.target.value.split(':').map(Number);
-              if (p.length === 2) setTsEnd(p[0] * 60 + p[1]);
-              else if (p.length === 3) setTsEnd(p[0] * 3600 + p[1] * 60 + p[2]);
-            }}
+          <button onClick={() => setTsEnd(currentTime)}
+            title="현재 재생 시점으로 설정"
             style={{
-              background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 6,
-              color: T.text, fontFamily: T.fontMono, fontSize: 14, padding: '4px 8px',
-              width: 72, textAlign: 'center',
+              background: T.surfaceAlt, border: `1px solid ${tsEnd !== '' ? T.accent : T.border}`, borderRadius: 6,
+              color: tsEnd !== '' ? T.accent : T.textMuted, fontFamily: T.fontMono, fontSize: 14, padding: '4px 10px',
+              cursor: 'pointer', minWidth: 72, textAlign: 'center', transition: 'border-color 0.15s',
             }}
-          />
+            onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
+            onMouseLeave={e => e.currentTarget.style.borderColor = tsEnd !== '' ? T.accent : T.border}
+          >{tsEnd !== '' ? fmtTime(tsEnd) : '클릭'}</button>
+          {tsEnd !== '' && (
+            <button onClick={() => setTsEnd('')}
+              style={{
+                background: 'transparent', border: 'none', color: T.textMuted,
+                cursor: 'pointer', fontSize: 11, padding: '2px 4px',
+              }}>✕</button>
+          )}
         </div>
       </div>
 
