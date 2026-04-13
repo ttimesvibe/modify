@@ -19,7 +19,7 @@ function handleAuthError() {
 }
 
 // ─── Config ───
-const WORKER_URL = 'https://modify.ttimes6000.workers.dev'; // e.g. https://video-review.xxx.workers.dev
+const WORKER_URL = 'https://modify.ttimes.workers.dev';
 const AUTOSAVE_DELAY = 180_000; // 3분
 
 // ─── Styles ───
