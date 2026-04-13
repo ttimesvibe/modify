@@ -1,5 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
+// ─── Auth ───
+const AUTH_URL = 'https://auth.ttimes6000.workers.dev';
+function getAuthHeaders() {
+  const token = localStorage.getItem('ttimes_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+function decodeJWT(token) {
+  try {
+    const b64 = token.split('.')[1];
+    const bytes = Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return null; }
+}
+function handleAuthError() {
+  localStorage.removeItem('ttimes_token');
+  window.location.reload();
+}
+
 // ─── Config ───
 const WORKER_URL = 'https://modify.ttimes6000.workers.dev'; // e.g. https://video-review.xxx.workers.dev
 const AUTOSAVE_DELAY = 180_000; // 3분
@@ -88,10 +106,11 @@ async function resizeImage(blob, maxW = 640, quality = 0.7) {
 
 async function api(path, opts = {}) {
   const res = await fetch(`${WORKER_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
+  if (res.status === 401) { handleAuthError(); throw new Error('Unauthorized'); }
   return res.json();
 }
 
@@ -474,8 +493,68 @@ function ReviewCard({ card, onCheck, onReply, onDelete, onSeek, onEdit, images, 
   );
 }
 
-// ─── Main App ───
+// ─── Auth Gate ───
 export default function App() {
+  const [authState, setAuthState] = useState('checking');
+  const [authUser, setAuthUser] = useState(null);
+  useEffect(() => {
+    const token = localStorage.getItem('ttimes_token');
+    if (!token) { setAuthState('login'); return; }
+    try {
+      const payload = decodeJWT(token);
+      if (!payload || payload.exp < Date.now() / 1000) { localStorage.removeItem('ttimes_token'); setAuthState('login'); return; }
+      setAuthUser({ email: payload.sub, name: payload.name, role: payload.role });
+      setAuthState('authenticated');
+    } catch { localStorage.removeItem('ttimes_token'); setAuthState('login'); }
+  }, []);
+  if (authState === 'checking') return <div style={{ height: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textMuted, fontFamily: T.fontBody }}>로딩 중...</div>;
+  if (authState === 'login') return <LoginScreen onLogin={(token, user) => { localStorage.setItem('ttimes_token', token); localStorage.setItem('ttimes_user', JSON.stringify(user)); setAuthUser(user); setAuthState('authenticated'); }} />;
+  return <AppMain authUser={authUser} onLogout={() => { localStorage.removeItem('ttimes_token'); localStorage.removeItem('ttimes_user'); setAuthUser(null); setAuthState('login'); }} />;
+}
+
+function LoginScreen({ onLogin }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const handleLogin = async (e) => {
+    e.preventDefault(); setLoading(true); setError('');
+    try {
+      const res = await fetch(`${AUTH_URL}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+      const data = await res.json();
+      if (data.success) { onLogin(data.token, data.user); } else { setError(data.error || '로그인 실패'); }
+    } catch { setError('서버 연결 실패'); } finally { setLoading(false); }
+  };
+  const iS = { width: '100%', padding: '12px 16px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceAlt, color: T.text, fontSize: 14, fontFamily: T.fontBody, outline: 'none', boxSizing: 'border-box' };
+  return (
+    <div style={{ height: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.fontBody }}>
+      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: '48px 40px', width: '100%', maxWidth: 400, boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }}>
+        <h1 style={{ textAlign: 'center', fontSize: 20, fontWeight: 800, marginBottom: 32, color: T.text }}>
+          <span style={{ background: 'linear-gradient(135deg, #6C9CFC, #A78BFA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Video Review</span>
+        </h1>
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: T.textMuted, marginBottom: 6, display: 'block' }}>아이디</label>
+            <input type="text" value={email} onChange={e => setEmail(e.target.value)} style={iS} required autoFocus />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 12, color: T.textMuted, marginBottom: 6, display: 'block' }}>비밀번호</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={iS} required />
+          </div>
+          {error && <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 16, background: T.redBg, color: T.red, fontSize: 13 }}>{error}</div>}
+          <button type="submit" disabled={loading} style={{
+            width: '100%', padding: '13px', borderRadius: 8, border: 'none',
+            background: loading ? T.accentDim : T.accent, color: '#fff', fontSize: 15,
+            fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: T.fontBody,
+          }}>{loading ? '로그인 중...' : '로그인'}</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ───
+function AppMain({ authUser, onLogout }) {
   const [view, setView] = useState('home'); // home | review
   const [sessionId, setSessionId] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -722,14 +801,26 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: T.fontBody }}>
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '60px 20px' }}>
-          <h1 style={{
-            fontSize: 28, fontWeight: 700, marginBottom: 8,
-            background: 'linear-gradient(135deg, #6C9CFC, #A78BFA)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>Video Review</h1>
-          <p style={{ color: T.textDim, fontSize: 14, marginBottom: 40 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 40 }}>
+            <div>
+              <h1 style={{
+                fontSize: 28, fontWeight: 700, marginBottom: 8,
+                background: 'linear-gradient(135deg, #6C9CFC, #A78BFA)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              }}>Video Review</h1>
+              <p style={{ color: T.textDim, fontSize: 14 }}>
             영상 수정 사항을 건건이 기록하고 공유합니다
           </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {authUser && <span style={{ fontSize: 12, color: T.textMuted }}>{authUser.name || authUser.email}</span>}
+              <button onClick={onLogout} style={{
+                fontSize: 12, padding: '5px 14px', borderRadius: 6,
+                border: `1px solid ${T.border}`, background: T.surface,
+                color: T.textDim, cursor: 'pointer', fontFamily: T.fontBody,
+              }}>로그아웃</button>
+            </div>
+          </div>
 
           {/* 새 리뷰 */}
           <div style={{
@@ -838,6 +929,12 @@ export default function App() {
                 background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 6,
                 color: T.text, padding: '6px 12px', cursor: 'pointer', fontSize: 13,
               }}>🔗 공유</button>
+            {authUser && <span style={{ fontSize: 12, color: T.textMuted }}>{authUser.name || authUser.email}</span>}
+            <button onClick={onLogout} style={{
+              fontSize: 12, padding: '5px 10px', borderRadius: 6,
+              border: `1px solid ${T.border}`, background: 'transparent',
+              color: T.textDim, cursor: 'pointer', fontFamily: T.fontBody,
+            }}>로그아웃</button>
           </div>
         </div>
 
